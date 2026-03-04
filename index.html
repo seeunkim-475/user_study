@@ -1,0 +1,2166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Generation Evaluation Study</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --border: #E2DDD6;
+    --text-primary: #1A1714;
+    --text-secondary: #6B6560;
+    --accent: #2D6A4F;
+    --accent-light: #D8F3DC;
+    --accent-hover: #1B4332;
+    --selected-bg: #F0FAF3;
+    --warn: #E76F51;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; }
+
+  header {
+    background: var(--text-primary); color: white;
+    padding: 24px 48px; display: flex; align-items: center;
+    justify-content: space-between; position: sticky; top: 0; z-index: 100;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.15);
+  }
+  header .logo { font-family: 'DM Serif Display', serif; font-size: 1.4rem; }
+  header .logo span { color: #74C69D; }
+  header .progress-info { font-size: 0.8rem; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .phase-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 100px; padding: 6px 16px; font-size: 0.8rem; font-weight: 600;
+  }
+  .phase-dot { width: 8px; height: 8px; border-radius: 50%; background: #74C69D; }
+
+  .intro-banner {
+    background: linear-gradient(135deg, #1A1714 0%, #2D3A2E 100%);
+    color: white; padding: 48px;
+  }
+  .intro-banner h1 { font-family: 'DM Serif Display', serif; font-size: 2.4rem; margin-bottom: 16px; line-height: 1.2; }
+  .intro-banner p { font-size: 0.95rem; color: rgba(255,255,255,0.7); max-width: 640px; line-height: 1.7; margin-bottom: 24px; }
+  .model-tag {
+    display: inline-block;
+    background: rgba(116,198,157,0.2); border: 1px solid rgba(116,198,157,0.4);
+    color: #74C69D; font-size: 0.8rem; font-weight: 600;
+    padding: 4px 14px; border-radius: 100px; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  .criteria-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; max-width: 840px; }
+  .criterion-card {
+    background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius); padding: 18px 20px;
+  }
+  .criterion-card .icon { font-size: 1.4rem; margin-bottom: 8px; }
+  .criterion-card h3 { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #74C69D; margin-bottom: 6px; }
+  .criterion-card p { font-size: 0.8rem; color: rgba(255,255,255,0.6); line-height: 1.5; margin: 0; }
+
+  .phase-section { display: none; }
+  .phase-section.active { display: block; }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 48px 32px 100px; }
+
+  /* ── Group Card ── */
+  .group-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 18px; margin-bottom: 48px; overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04); transition: box-shadow 0.2s;
+  }
+  .group-card:hover { box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+
+  .group-header {
+    padding: 20px 32px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: #FAFAF8;
+  }
+  .group-header h2 { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+
+  .status-badge {
+    font-size: 0.7rem; font-weight: 600; padding: 3px 10px;
+    border-radius: 20px; background: #FEE9E0; color: var(--warn);
+    text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .status-badge.answered { background: var(--accent-light); color: var(--accent); }
+
+  .group-body {
+    display: flex; flex-direction: row; gap: 0;
+    align-items: start; justify-content: center;
+  }
+
+  /* ── Image table ── */
+  .images-section {
+    padding: 24px 24px 24px 32px;
+    overflow-x: auto; border-right: 1px solid var(--border); flex: 0 0 auto;
+  }
+  .images-table {
+    width: auto; border-collapse: separate; border-spacing: 0; table-layout: fixed;
+  }
+  .images-table thead th {
+    padding: 0 4px 10px 4px; font-size: 0.9rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-primary);
+    text-align: center; vertical-align: bottom; width: 160px;
+  }
+  .images-table thead th:first-child {
+    text-align: left; width: 80px; min-width: 80px; padding: 0;
+  }
+  .images-table thead th .prompt-text {
+    display: inline-block; font-size: 0.72rem; font-weight: 600;
+    color: var(--text-primary); margin-top: 6px; white-space: normal;
+    word-break: break-word; width: 160px;
+    background: rgba(45,106,79,0.08); border: 1px solid rgba(45,106,79,0.15);
+    border-radius: 8px; padding: 6px 10px; line-height: 1.5;
+  }
+  .images-table tbody tr { transition: background 0.15s; }
+  .images-table tbody td { padding: 12px 4px; vertical-align: middle; }
+  .images-table tbody td:first-child {
+    padding: 12px 12px 12px 0; vertical-align: middle; text-align: center;
+  }
+  .option-row-label {
+    font-family: 'DM Serif Display', serif; font-size: 1rem;
+    color: var(--text-secondary); white-space: nowrap;
+  }
+  .image-cell {
+    border-radius: 10px; overflow: hidden; width: 160px; height: 160px;
+    background: var(--bg); border: 1px solid var(--border); flex-shrink: 0; margin: 0 auto;
+  }
+  .image-cell img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+  }
+  .image-placeholder {
+    width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #E8E4DC, #D4CFC6);
+    color: var(--text-secondary); font-size: 0.7rem;
+  }
+
+  /* ── Voting panel ── */
+  .voting-panel {
+    width: 260px; min-width: 220px; padding: 24px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    position: static; flex-shrink: 0;
+  }
+  .voting-panel-title {
+    font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-secondary);
+  }
+
+  /* 기준 힌트 */
+  .criteria-hint {
+    display: flex; flex-direction: column; gap: 7px;
+    padding: 12px 14px;
+    background: #F7F5F0; border: 1px solid var(--border); border-radius: 10px;
+  }
+  .criteria-hint-item {
+    display: flex; align-items: flex-start; gap: 7px;
+    font-size: 0.72rem; color: var(--text-secondary); line-height: 1.4;
+  }
+  .criteria-hint-item .hint-icon { flex-shrink: 0; }
+  .criteria-hint-item strong { color: var(--text-primary); font-weight: 600; }
+
+  /* 옵션 선택 블록 */
+  .vote-block { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .vote-block-header {
+    padding: 10px 14px; background: #F7F5F0; border-bottom: 1px solid var(--border);
+    font-size: 0.78rem; font-weight: 600; color: var(--text-primary);
+  }
+  .vote-opts { display: flex; flex-direction: column; }
+  .vote-option {
+    display: flex; align-items: center; gap: 10px; padding: 11px 14px;
+    cursor: pointer; border-bottom: 1px solid var(--border);
+    transition: all 0.2s; position: relative;
+  }
+  .vote-option:last-child { border-bottom: none; }
+  .vote-option:hover { background: #F0FAF3; }
+  .vote-option.selected { background: var(--selected-bg); }
+  .vote-option.selected::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: 3px; background: var(--accent); border-radius: 0 2px 2px 0;
+  }
+  .vote-radio {
+    width: 17px; height: 17px; border: 2px solid var(--border);
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s; flex-shrink: 0;
+  }
+  .vote-option.selected .vote-radio { border-color: var(--accent); background: var(--accent); }
+  .vote-option.selected .vote-radio::after {
+    content: ''; width: 5px; height: 5px; background: white; border-radius: 50%; display: block;
+  }
+  .vote-option-label {
+    font-family: 'DM Serif Display', serif; font-size: 0.95rem;
+    color: var(--text-secondary); transition: color 0.2s;
+  }
+  .vote-option.selected .vote-option-label { color: var(--accent); font-weight: 600; }
+
+  /* ── Submit bar ── */
+  .submit-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--text-primary); color: white;
+    padding: 16px 48px; display: flex; align-items: center;
+    justify-content: space-between; z-index: 200;
+    box-shadow: 0 -4px 30px rgba(0,0,0,0.2);
+  }
+  .progress-wrap { display: flex; align-items: center; gap: 16px; flex: 1; }
+  .progress-bar-outer {
+    flex: 1; max-width: 300px; height: 4px;
+    background: rgba(255,255,255,0.2); border-radius: 4px; overflow: hidden;
+  }
+  .progress-bar-inner { height: 100%; background: #74C69D; border-radius: 4px; transition: width 0.4s ease; }
+  .progress-text { font-size: 0.82rem; color: rgba(255,255,255,0.6); white-space: nowrap; }
+  .submit-btn {
+    background: var(--accent); color: white; border: none;
+    padding: 12px 36px; border-radius: 100px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .submit-btn:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+  .submit-btn:disabled { background: rgba(255,255,255,0.2); cursor: not-allowed; }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 500;
+    align-items: center; justify-content: center; backdrop-filter: blur(4px);
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: white; border-radius: 20px; padding: 48px;
+    max-width: 700px; width: 90%; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: modalIn 0.3s ease; max-height: 80vh; overflow-y: auto;
+  }
+  @keyframes modalIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal .big-check { font-size: 3rem; margin-bottom: 16px; }
+  .modal h2 { font-family: 'DM Serif Display', serif; font-size: 1.8rem; margin-bottom: 12px; }
+  .modal p { color: var(--text-secondary); line-height: 1.7; margin-bottom: 24px; }
+  .results-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; text-align: left; }
+  .results-table th, .results-table td { padding: 8px 12px; font-size: 0.82rem; border-bottom: 1px solid var(--border); }
+  .results-table th {
+    font-weight: 600; color: var(--text-secondary); font-size: 0.72rem;
+    text-transform: uppercase; letter-spacing: 0.05em; background: #FAFAF8;
+  }
+  .results-table td:not(:first-child) { font-weight: 600; color: var(--accent); }
+  .modal-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .close-btn {
+    background: var(--text-primary); color: white; border: none;
+    padding: 14px 32px; border-radius: 100px; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .close-btn:hover { background: var(--accent); }
+  .copy-btn {
+    background: var(--accent-light); color: var(--accent); border: none;
+    padding: 14px 32px; border-radius: 100px; font-size: 0.9rem; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .copy-btn:hover { background: var(--accent); color: white; }
+
+  /* ── Name Input Modal ── */
+  .name-input-wrap { margin: 24px 0; }
+  .name-input-wrap input {
+    width: 100%; padding: 14px 18px; font-size: 1rem;
+    font-family: 'DM Sans', sans-serif;
+    border: 2px solid var(--border); border-radius: 12px;
+    outline: none; transition: border-color 0.2s; text-align: center;
+  }
+  .name-input-wrap input:focus { border-color: var(--accent); }
+  .start-btn {
+    background: var(--accent); color: white; border: none;
+    padding: 14px 48px; border-radius: 100px; font-size: 1rem; font-weight: 600;
+    cursor: pointer; font-family: 'DM Sans', sans-serif; transition: all 0.2s;
+  }
+  .start-btn:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+  .start-btn:disabled { background: var(--border); color: var(--text-secondary); cursor: not-allowed; }
+
+  /* ── Mobile ── */
+  @media (max-width: 900px) {
+    main { padding: 24px 16px 100px; }
+    .group-body { flex-direction: column; }
+    .images-section {
+      border-right: none; border-bottom: 1px solid var(--border);
+      padding: 16px; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    }
+    .image-cell { width: 110px; height: 110px; }
+    .images-table thead th { width: 110px; }
+    .images-table thead th .prompt-text { width: 110px; font-size: 0.65rem; }
+    .voting-panel { width: 100%; min-width: unset; padding: 16px; }
+  }
+  @media (max-width: 600px) {
+    header { padding: 14px 16px; }
+    .intro-banner { padding: 24px 16px; }
+    .intro-banner h1 { font-size: 1.8rem; }
+    .criteria-grid { grid-template-columns: 1fr; gap: 10px; }
+    .group-header { padding: 14px 16px; flex-direction: column; align-items: flex-start; gap: 10px; }
+    .submit-bar { padding: 12px 16px; gap: 12px; }
+    .progress-bar-outer { max-width: 120px; }
+    .submit-btn { padding: 10px 20px; font-size: 0.82rem; }
+    .image-cell { width: 90px; height: 90px; }
+    .images-table thead th { width: 90px; }
+    .images-table thead th .prompt-text { width: 90px; font-size: 0.6rem; padding: 4px 6px; }
+    .images-table tbody td:first-child { padding: 8px 8px 8px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Eval<span>Studio</span></div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="phase-pill">
+      <div class="phase-dot"></div>
+      <span id="phase-label">Part 1 of 2</span>
+    </div>
+    <div class="progress-info">Human Evaluation</div>
+  </div>
+</header>
+
+<!-- ══════════════════════════ PHASE 1 ══════════════════════════ -->
+<div class="phase-section active" id="phase-flux">
+  <div class="intro-banner">
+    <div class="model-tag">Part 1 of 2</div>
+    <h1>Image Generation<br>Human Evaluation</h1>
+    <p>각 그룹의 이미지를 보고, 아래 세 가지 기준을 <strong>종합적으로</strong> 고려하여 가장 좋은 옵션 하나를 선택해 주세요.</p>
+    <div class="criteria-grid">
+      <div class="criterion-card">
+        <div class="icon">🎯</div>
+        <h3>Text-Image Alignment</h3>
+        <p>이미지가 주어진 프롬프트 텍스트를 얼마나 잘 반영하는지</p>
+      </div>
+      <div class="criterion-card">
+        <div class="icon">🔗</div>
+        <h3>Subject Consistency</h3>
+        <p>여러 이미지에 걸쳐 피사체(객체)가 일관되게 유지되는지</p>
+      </div>
+      <div class="criterion-card">
+        <div class="icon">✨</div>
+        <h3>Image Quality</h3>
+        <p>이미지가 선명하고 세부적이며 시각적 완성도가 높은지</p>
+      </div>
+    </div>
+  </div>
+  <main id="flux-content"></main>
+</div>
+
+<!-- ══════════════════════════ PHASE 2 ══════════════════════════ -->
+<div class="phase-section" id="phase-sdxl">
+  <div class="intro-banner">
+    <div class="model-tag">Part 2 of 2</div>
+    <h1>Image Generation<br>Human Evaluation</h1>
+    <p>이제 두 번째 이미지 세트를 평가해 주세요. 기준은 동일합니다.</p>
+    <div class="criteria-grid">
+      <div class="criterion-card">
+        <div class="icon">🎯</div>
+        <h3>Text-Image Alignment</h3>
+        <p>이미지가 주어진 프롬프트 텍스트를 얼마나 잘 반영하는지</p>
+      </div>
+      <div class="criterion-card">
+        <div class="icon">🔗</div>
+        <h3>Subject Consistency</h3>
+        <p>여러 이미지에 걸쳐 피사체(객체)가 일관되게 유지되는지</p>
+      </div>
+      <div class="criterion-card">
+        <div class="icon">✨</div>
+        <h3>Image Quality</h3>
+        <p>이미지가 선명하고 세부적이며 시각적 완성도가 높은지</p>
+      </div>
+    </div>
+  </div>
+  <main id="sdxl-content"></main>
+</div>
+
+<div class="submit-bar">
+  <div class="progress-wrap">
+    <div class="progress-bar-outer">
+      <div class="progress-bar-inner" id="progress-bar" style="width:0%"></div>
+    </div>
+    <span class="progress-text" id="progress-text">0 / 0 answered</span>
+  </div>
+  <button class="submit-btn" id="submit-btn" disabled onclick="onSubmitClick()">Next: Part 2 →</button>
+</div>
+
+<!-- Name modal -->
+<div class="modal-overlay show" id="name-modal">
+  <div class="modal">
+    <div class="big-check">👋</div>
+    <h2>평가를 시작합니다</h2>
+    <p>결과 제출 시 식별을 위해 이름 또는 닉네임을 입력해 주세요.<br>총 2단계로 진행됩니다.</p>
+    <div class="name-input-wrap">
+      <input type="text" id="evaluator-name" placeholder="이름 입력..."
+        oninput="document.getElementById('start-btn').disabled = !this.value.trim()"
+        onkeydown="if(event.key==='Enter') startEval()">
+    </div>
+    <button class="start-btn" id="start-btn" disabled onclick="startEval()">시작하기</button>
+  </div>
+</div>
+
+<!-- Phase transition modal -->
+<div class="modal-overlay" id="phase-modal">
+  <div class="modal">
+    <div class="big-check">✅</div>
+    <h2>Part 1 완료!</h2>
+    <p>첫 번째 이미지 세트 평가가 끝났습니다.<br>이제 두 번째 이미지 세트를 평가해 주세요.</p>
+    <div class="modal-btns">
+      <button class="close-btn" onclick="goToPhase2()">Part 2 시작 →</button>
+    </div>
+  </div>
+</div>
+
+<!-- Final result modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="big-check">🎉</div>
+    <h2>Evaluation Complete!</h2>
+    <p>모든 평가가 완료되었습니다. 감사합니다!</p>
+    <table class="results-table" id="results-table">
+      <thead>
+        <tr>
+          <th>Part</th>
+          <th>Group</th>
+          <th>Best Option</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="modal-btns">
+      <button class="copy-btn" onclick="copyResults()">📋 결과 복사</button>
+      <button class="close-btn" onclick="closeModal()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const fluxGroups    = [
+  {
+    "id": 1,
+    "title": "Prompt Group 1 (animals_11)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat at a lake"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat playing with a ball"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat wearing a training harness"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat at a lake.jpg",
+          "images/flux/characonsist/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat playing with a ball.jpg",
+          "images/flux/characonsist/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat wearing a training harness.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat at a lake.jpg",
+          "images/flux/ours/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat playing with a ball.jpg",
+          "images/flux/ours/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat wearing a training harness.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat at a lake.jpg",
+          "images/flux/zigzag/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat playing with a ball.jpg",
+          "images/flux/zigzag/animals_11/A 3D animation of A cute Labrador puppy with a glossy, chocolate brown coat wearing a training harness.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Prompt Group 2 (animals_16)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A hyper-realistic digital painting of A cat climbing a tree"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A hyper-realistic digital painting of A cat playing with a yarn ball"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A hyper-realistic digital painting of A cat wearing a fluffy collar"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/animals_16/A hyper-realistic digital painting of A cat climbing a tree.jpg",
+          "images/flux/characonsist/animals_16/A hyper-realistic digital painting of A cat playing with a yarn ball.jpg",
+          "images/flux/characonsist/animals_16/A hyper-realistic digital painting of A cat wearing a fluffy collar.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/animals_16/A hyper-realistic digital painting of A cat climbing a tree.jpg",
+          "images/flux/ours/animals_16/A hyper-realistic digital painting of A cat playing with a yarn ball.jpg",
+          "images/flux/ours/animals_16/A hyper-realistic digital painting of A cat wearing a fluffy collar.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/animals_16/A hyper-realistic digital painting of A cat climbing a tree.jpg",
+          "images/flux/zigzag/animals_16/A hyper-realistic digital painting of A cat playing with a yarn ball.jpg",
+          "images/flux/zigzag/animals_16/A hyper-realistic digital painting of A cat wearing a fluffy collar.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Prompt Group 3 (animals_18)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": " A cute kitten with sleek, cream-colored fur and striking blue eyes in a hospital"
+      },
+      {
+        "label": "Prompt 2",
+        "text": " A cute kitten with sleek, cream-colored fur and striking blue eyes on a rooftop"
+      },
+      {
+        "label": "Prompt 3",
+        "text": " A cute kitten with sleek, cream-colored fur and striking blue eyes wearing a tiny hat"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes in a hospital.jpg",
+          "images/flux/characonsist/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes on a rooftop.jpg",
+          "images/flux/characonsist/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes wearing a tiny hat.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes in a hospital.jpg",
+          "images/flux/ours/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes on a rooftop.jpg",
+          "images/flux/ours/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes wearing a tiny hat.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes in a hospital.jpg",
+          "images/flux/zigzag/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes on a rooftop.jpg",
+          "images/flux/zigzag/animals_18/ A cute kitten with sleek, cream-colored fur and striking blue eyes wearing a tiny hat.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "title": "Prompt Group 4 (fairy_tales_10)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A whimsical painting of A delicate fairy with translucent wings hovering over a moonlit pond"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A whimsical painting of A delicate fairy with translucent wings playing with fireflies at dusk"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A whimsical painting of A delicate fairy with translucent wings sitting on a mushroom in a magical forest"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings hovering over a moonlit pond.jpg",
+          "images/flux/characonsist/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings playing with fireflies at dusk.jpg",
+          "images/flux/characonsist/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings sitting on a mushroom in a magical forest.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings hovering over a moonlit pond.jpg",
+          "images/flux/ours/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings playing with fireflies at dusk.jpg",
+          "images/flux/ours/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings sitting on a mushroom in a magical forest.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings hovering over a moonlit pond.jpg",
+          "images/flux/zigzag/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings playing with fireflies at dusk.jpg",
+          "images/flux/zigzag/fairy_tales_10/A whimsical painting of A delicate fairy with translucent wings sitting on a mushroom in a magical forest.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "title": "Prompt Group 5 (fairy_tales_11)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A mystical illustration of A wise wizard with a long, flowing beard consulting a crystal ball"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A mystical illustration of A wise wizard with a long, flowing beard standing before a magical portal in the forest"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A mystical illustration of A wise wizard with a long, flowing beard writing runes in a dusty spellbook"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard consulting a crystal ball.jpg",
+          "images/flux/characonsist/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard standing before a magical portal in the forest.jpg",
+          "images/flux/characonsist/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard writing runes in a dusty spellbook.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard consulting a crystal ball.jpg",
+          "images/flux/ours/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard standing before a magical portal in the forest.jpg",
+          "images/flux/ours/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard writing runes in a dusty spellbook.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard consulting a crystal ball.jpg",
+          "images/flux/zigzag/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard standing before a magical portal in the forest.jpg",
+          "images/flux/zigzag/fairy_tales_11/A mystical illustration of A wise wizard with a long, flowing beard writing runes in a dusty spellbook.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "title": "Prompt Group 6 (fairy_tales_18)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A quirky artwork of A mischievous goblin with sharp features climbing the walls of a deserted castle"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A quirky artwork of A mischievous goblin with sharp features running through an underground tunnel"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A quirky artwork of A mischievous goblin with sharp features sneaking through a dark market at midnight"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features climbing the walls of a deserted castle.jpg",
+          "images/flux/characonsist/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features running through an underground tunnel.jpg",
+          "images/flux/characonsist/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features sneaking through a dark market at midnight.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features climbing the walls of a deserted castle.jpg",
+          "images/flux/ours/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features running through an underground tunnel.jpg",
+          "images/flux/ours/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features sneaking through a dark market at midnight.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features climbing the walls of a deserted castle.jpg",
+          "images/flux/zigzag/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features running through an underground tunnel.jpg",
+          "images/flux/zigzag/fairy_tales_18/A quirky artwork of A mischievous goblin with sharp features sneaking through a dark market at midnight.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "title": "Prompt Group 7 (fairy_tales_22)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A dreamy illustration of A beautiful princess gazing at the stars from a castle balcony"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A dreamy illustration of A beautiful princess seeking wisdom from an old magical mirror"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A dreamy illustration of A beautiful princess walking in a garden of enchanted roses"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fairy_tales_22/A dreamy illustration of A beautiful princess gazing at the stars from a castle balcony.jpg",
+          "images/flux/characonsist/fairy_tales_22/A dreamy illustration of A beautiful princess seeking wisdom from an old magical mirror.jpg",
+          "images/flux/characonsist/fairy_tales_22/A dreamy illustration of A beautiful princess walking in a garden of enchanted roses.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fairy_tales_22/A dreamy illustration of A beautiful princess gazing at the stars from a castle balcony.jpg",
+          "images/flux/ours/fairy_tales_22/A dreamy illustration of A beautiful princess seeking wisdom from an old magical mirror.jpg",
+          "images/flux/ours/fairy_tales_22/A dreamy illustration of A beautiful princess walking in a garden of enchanted roses.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fairy_tales_22/A dreamy illustration of A beautiful princess gazing at the stars from a castle balcony.jpg",
+          "images/flux/zigzag/fairy_tales_22/A dreamy illustration of A beautiful princess seeking wisdom from an old magical mirror.jpg",
+          "images/flux/zigzag/fairy_tales_22/A dreamy illustration of A beautiful princess walking in a garden of enchanted roses.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "title": "Prompt Group 8 (fairy_tales_29)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A sneaky illustration of A cunning goblin brewing potions in a dark hut"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A sneaky illustration of A cunning goblin hoarding treasure in a hidden cave"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A sneaky illustration of A cunning goblin sneaking through a dark alley"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fairy_tales_29/A sneaky illustration of A cunning goblin brewing potions in a dark hut.jpg",
+          "images/flux/characonsist/fairy_tales_29/A sneaky illustration of A cunning goblin hoarding treasure in a hidden cave.jpg",
+          "images/flux/characonsist/fairy_tales_29/A sneaky illustration of A cunning goblin sneaking through a dark alley.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fairy_tales_29/A sneaky illustration of A cunning goblin brewing potions in a dark hut.jpg",
+          "images/flux/ours/fairy_tales_29/A sneaky illustration of A cunning goblin hoarding treasure in a hidden cave.jpg",
+          "images/flux/ours/fairy_tales_29/A sneaky illustration of A cunning goblin sneaking through a dark alley.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fairy_tales_29/A sneaky illustration of A cunning goblin brewing potions in a dark hut.jpg",
+          "images/flux/zigzag/fairy_tales_29/A sneaky illustration of A cunning goblin hoarding treasure in a hidden cave.jpg",
+          "images/flux/zigzag/fairy_tales_29/A sneaky illustration of A cunning goblin sneaking through a dark alley.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "title": "Prompt Group 9 (fantasy_11)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes surrounded by enchanted flames"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/flux/characonsist/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg",
+          "images/flux/characonsist/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes surrounded by enchanted flames.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/flux/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg",
+          "images/flux/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes surrounded by enchanted flames.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/flux/zigzag/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg",
+          "images/flux/zigzag/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes surrounded by enchanted flames.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "title": "Prompt Group 10 (fantasy_15)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards in a library of scrolls"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards reading an ancient text"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/flux/characonsist/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards in a library of scrolls.jpg",
+          "images/flux/characonsist/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards reading an ancient text.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/flux/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards in a library of scrolls.jpg",
+          "images/flux/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards reading an ancient text.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/flux/zigzag/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards in a library of scrolls.jpg",
+          "images/flux/zigzag/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards reading an ancient text.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "title": "Prompt Group 11 (fantasy_2)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A dreamy underwater illustration of A beautiful mermaid with a shimmering tail basking on a sunlit rock"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A dreamy underwater illustration of A beautiful mermaid with a shimmering tail combing her hair with a shell"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A dreamy underwater illustration of A beautiful mermaid with a shimmering tail playing with colorful fish"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail basking on a sunlit rock.jpg",
+          "images/flux/characonsist/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail combing her hair with a shell.jpg",
+          "images/flux/characonsist/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail playing with colorful fish.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail basking on a sunlit rock.jpg",
+          "images/flux/ours/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail combing her hair with a shell.jpg",
+          "images/flux/ours/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail playing with colorful fish.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail basking on a sunlit rock.jpg",
+          "images/flux/zigzag/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail combing her hair with a shell.jpg",
+          "images/flux/zigzag/fantasy_2/A dreamy underwater illustration of A beautiful mermaid with a shimmering tail playing with colorful fish.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "title": "Prompt Group 12 (fantasy_7)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A regal and elegant illustration of An elf queen with a jeweled crown leading her people into battle"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A regal and elegant illustration of An elf queen with a jeweled crown overseeing the elven kingdom"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A regal and elegant illustration of An elf queen with a jeweled crown speaking with ancient spirits"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown leading her people into battle.jpg",
+          "images/flux/characonsist/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown overseeing the elven kingdom.jpg",
+          "images/flux/characonsist/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown speaking with ancient spirits.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/flux/ours/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown leading her people into battle.jpg",
+          "images/flux/ours/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown overseeing the elven kingdom.jpg",
+          "images/flux/ours/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown speaking with ancient spirits.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "zigzag",
+        "images": [
+          "images/flux/zigzag/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown leading her people into battle.jpg",
+          "images/flux/zigzag/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown overseeing the elven kingdom.jpg",
+          "images/flux/zigzag/fantasy_7/A regal and elegant illustration of An elf queen with a jeweled crown speaking with ancient spirits.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "title": "Prompt Group 13 (inanimate_124)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A photo of A sticker of a fluffy white cloud floating on a postcard"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A photo of A sticker of a fluffy white cloud on a birthday card"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A photo of A sticker of a fluffy white cloud stuck on a book cover"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/inanimate_124/A photo of A sticker of a fluffy white cloud floating on a postcard.jpg",
+          "images/flux/characonsist/inanimate_124/A photo of A sticker of a fluffy white cloud on a birthday card.jpg",
+          "images/flux/characonsist/inanimate_124/A photo of A sticker of a fluffy white cloud stuck on a book cover.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "title": "Prompt Group 14 (nature_144)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A vivid acrylic painting of A vibrant rainbow after a spring rainstorm"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A vivid acrylic painting of A vibrant rainbow against a backdrop of dark clouds"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A vivid acrylic painting of A vibrant rainbow arching over a misty waterfall"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/nature_144/A vivid acrylic painting of A vibrant rainbow after a spring rainstorm.jpg",
+          "images/flux/characonsist/nature_144/A vivid acrylic painting of A vibrant rainbow against a backdrop of dark clouds.jpg",
+          "images/flux/characonsist/nature_144/A vivid acrylic painting of A vibrant rainbow arching over a misty waterfall.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "title": "Prompt Group 15 (technoledge_183)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A futuristic urban illustration of A robotic dog with sleek metallic limbs assisting in search-and-rescue missions"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A futuristic urban illustration of A robotic dog with sleek metallic limbs patrolling a secure facility"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A futuristic urban illustration of A robotic dog with sleek metallic limbs playing fetch in a park"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "characonsist",
+        "images": [
+          "images/flux/characonsist/technoledge_183/A futuristic urban illustration of A robotic dog with sleek metallic limbs assisting in search-and-rescue missions.jpg",
+          "images/flux/characonsist/technoledge_183/A futuristic urban illustration of A robotic dog with sleek metallic limbs patrolling a secure facility.jpg",
+          "images/flux/characonsist/technoledge_183/A futuristic urban illustration of A robotic dog with sleek metallic limbs playing fetch in a park.jpg"
+        ]
+      }
+    ]
+  }
+];
+const sdxlGroups    = [
+  {
+    "id": 1,
+    "title": "Prompt Group 1 (animals_14)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": " A puppy dressed in a bandana"
+      },
+      {
+        "label": "Prompt 2",
+        "text": " A puppy in a pet store"
+      },
+      {
+        "label": "Prompt 3",
+        "text": " A puppy wearing a training harness"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/animals_14/ A puppy dressed in a bandana.jpg",
+          "images/sdxl/1p1s/animals_14/ A puppy in a pet store.jpg",
+          "images/sdxl/1p1s/animals_14/ A puppy wearing a training harness.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/animals_14/ A puppy dressed in a bandana.jpg",
+          "images/sdxl/ours/animals_14/ A puppy in a pet store.jpg",
+          "images/sdxl/ours/animals_14/ A puppy wearing a training harness.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/animals_14/  A puppy, dressed in a bandana.png",
+          "images/sdxl/consistory/animals_14/  A puppy, in a pet store.png",
+          "images/sdxl/consistory/animals_14/  A puppy, wearing a training harness.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/animals_14/ A puppy dressed in a bandana.jpg",
+          "images/sdxl/storydiffusion/animals_14/ A puppy in a pet store.jpg",
+          "images/sdxl/storydiffusion/animals_14/ A puppy wearing a training harness.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Prompt Group 2 (animals_7)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A hyper-realistic digital painting of A dog at a veterinarian's office"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A hyper-realistic digital painting of A dog chasing a frisbee"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A hyper-realistic digital painting of A dog running on a beach"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/animals_7/A hyper-realistic digital painting of A dog at a veterinarian's office.jpg",
+          "images/sdxl/1p1s/animals_7/A hyper-realistic digital painting of A dog chasing a frisbee.jpg",
+          "images/sdxl/1p1s/animals_7/A hyper-realistic digital painting of A dog running on a beach.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/animals_7/A hyper-realistic digital painting of A dog at a veterinarian's office.jpg",
+          "images/sdxl/ours/animals_7/A hyper-realistic digital painting of A dog chasing a frisbee.jpg",
+          "images/sdxl/ours/animals_7/A hyper-realistic digital painting of A dog running on a beach.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/animals_7/ A hyper-realistic digital painting of A dog, at a veterinarian's office.png",
+          "images/sdxl/consistory/animals_7/ A hyper-realistic digital painting of A dog, chasing a frisbee.png",
+          "images/sdxl/consistory/animals_7/ A hyper-realistic digital painting of A dog, dressed in a raincoat.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/animals_7/A hyper-realistic digital painting of A dog at a veterinarian's office.jpg",
+          "images/sdxl/storydiffusion/animals_7/A hyper-realistic digital painting of A dog chasing a frisbee.jpg",
+          "images/sdxl/storydiffusion/animals_7/A hyper-realistic digital painting of A dog running on a beach.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Prompt Group 3 (fairy_tales_25)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A rugged drawing of A grumpy troll grumbling in an underground lair"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A rugged drawing of A grumpy troll threatening travelers in a dark cave"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A rugged drawing of A grumpy troll wandering through a foggy swamp"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/fairy_tales_25/A rugged drawing of A grumpy troll grumbling in an underground lair.jpg",
+          "images/sdxl/1p1s/fairy_tales_25/A rugged drawing of A grumpy troll threatening travelers in a dark cave.jpg",
+          "images/sdxl/1p1s/fairy_tales_25/A rugged drawing of A grumpy troll wandering through a foggy swamp.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/fairy_tales_25/A rugged drawing of A grumpy troll grumbling in an underground lair.jpg",
+          "images/sdxl/ours/fairy_tales_25/A rugged drawing of A grumpy troll threatening travelers in a dark cave.jpg",
+          "images/sdxl/ours/fairy_tales_25/A rugged drawing of A grumpy troll wandering through a foggy swamp.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/fairy_tales_25/ A rugged drawing of A grumpy troll, grumbling in an underground lair.png",
+          "images/sdxl/consistory/fairy_tales_25/ A rugged drawing of A grumpy troll, threatening travelers in a dark cave.png",
+          "images/sdxl/consistory/fairy_tales_25/ A rugged drawing of A grumpy troll, wandering through a foggy swamp.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/fairy_tales_25/A rugged drawing of A grumpy troll grumbling in an underground lair.jpg",
+          "images/sdxl/storydiffusion/fairy_tales_25/A rugged drawing of A grumpy troll threatening travelers in a dark cave.jpg",
+          "images/sdxl/storydiffusion/fairy_tales_25/A rugged drawing of A grumpy troll wandering through a foggy swamp.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "title": "Prompt Group 4 (fantasy_10)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A dark fantasy illustration of A mischievous goblin with sharp teeth arguing over a shiny object"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A dark fantasy illustration of A mischievous goblin with sharp teeth lurking in the shadows of ruins"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A dark fantasy illustration of A mischievous goblin with sharp teeth trading trinkets at a market"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth arguing over a shiny object.jpg",
+          "images/sdxl/1p1s/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth lurking in the shadows of ruins.jpg",
+          "images/sdxl/1p1s/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth trading trinkets at a market.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth arguing over a shiny object.jpg",
+          "images/sdxl/ours/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth lurking in the shadows of ruins.jpg",
+          "images/sdxl/ours/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth trading trinkets at a market.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/fantasy_10/ A dark fantasy illustration of A mischievous goblin with sharp teeth, arguing over a shiny object.png",
+          "images/sdxl/consistory/fantasy_10/ A dark fantasy illustration of A mischievous goblin with sharp teeth, lurking in the shadows of ruins.png",
+          "images/sdxl/consistory/fantasy_10/ A dark fantasy illustration of A mischievous goblin with sharp teeth, trading trinkets at a market.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth arguing over a shiny object.jpg",
+          "images/sdxl/storydiffusion/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth lurking in the shadows of ruins.jpg",
+          "images/sdxl/storydiffusion/fantasy_10/A dark fantasy illustration of A mischievous goblin with sharp teeth trading trinkets at a market.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "title": "Prompt Group 5 (fantasy_11)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes chanting in a stone circle"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes chanting in a stone circle.jpg",
+          "images/sdxl/1p1s/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/sdxl/1p1s/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes chanting in a stone circle.jpg",
+          "images/sdxl/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/sdxl/ours/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/fantasy_11/ A captivating fantasy portrait of A powerful sorceress in elegant robes, chanting in a stone circle.png",
+          "images/sdxl/consistory/fantasy_11/ A captivating fantasy portrait of A powerful sorceress in elegant robes, conjuring a glowing orb.png",
+          "images/sdxl/consistory/fantasy_11/ A captivating fantasy portrait of A powerful sorceress in elegant robes, reading from an ancient tome.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes chanting in a stone circle.jpg",
+          "images/sdxl/storydiffusion/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes conjuring a glowing orb.jpg",
+          "images/sdxl/storydiffusion/fantasy_11/A captivating fantasy portrait of A powerful sorceress in elegant robes reading from an ancient tome.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "title": "Prompt Group 6 (fantasy_15)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards at a council meeting"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards meditating by a waterfall"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards at a council meeting.jpg",
+          "images/sdxl/1p1s/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/sdxl/1p1s/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards meditating by a waterfall.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards at a council meeting.jpg",
+          "images/sdxl/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/sdxl/ours/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards meditating by a waterfall.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/fantasy_15/ A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards, at a council meeting.png",
+          "images/sdxl/consistory/fantasy_15/ A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards, cleaning a sword.png",
+          "images/sdxl/consistory/fantasy_15/ A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards, meditating by a waterfall.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards at a council meeting.jpg",
+          "images/sdxl/storydiffusion/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards cleaning a sword.jpg",
+          "images/sdxl/storydiffusion/fantasy_15/A photo of An elf with long, silver hair, eyes like polished amethyst, and ears that curve elegantly upwards meditating by a waterfall.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "title": "Prompt Group 7 (fantasy_3)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A mystical and powerful illustration of A wise wizard with a long, flowing beard reading ancient books in a library"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A mystical and powerful illustration of A wise wizard with a long, flowing beard summoning creatures in a circle"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A mystical and powerful illustration of A wise wizard with a long, flowing beard wandering through a mystical forest"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard reading ancient books in a library.jpg",
+          "images/sdxl/1p1s/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard summoning creatures in a circle.jpg",
+          "images/sdxl/1p1s/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard wandering through a mystical forest.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard reading ancient books in a library.jpg",
+          "images/sdxl/ours/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard summoning creatures in a circle.jpg",
+          "images/sdxl/ours/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard wandering through a mystical forest.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/fantasy_3/ A mystical and powerful illustration of A wise wizard with a long, flowing beard, reading ancient books in a library.png",
+          "images/sdxl/consistory/fantasy_3/ A mystical and powerful illustration of A wise wizard with a long, flowing beard, summoning creatures in a circle.png",
+          "images/sdxl/consistory/fantasy_3/ A mystical and powerful illustration of A wise wizard with a long, flowing beard, wandering through a mystical forest.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard reading ancient books in a library.jpg",
+          "images/sdxl/storydiffusion/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard summoning creatures in a circle.jpg",
+          "images/sdxl/storydiffusion/fantasy_3/A mystical and powerful illustration of A wise wizard with a long, flowing beard wandering through a mystical forest.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "title": "Prompt Group 8 (humans_10)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A vibrant scene of A gardener with gloves and a straw hat arranging flowers in a basket"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A vibrant scene of A gardener with gloves and a straw hat planting flowers in a garden"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A vibrant scene of A gardener with gloves and a straw hat watering plants in a greenhouse"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/humans_10/A vibrant scene of A gardener with gloves and a straw hat arranging flowers in a basket.jpg",
+          "images/sdxl/1p1s/humans_10/A vibrant scene of A gardener with gloves and a straw hat planting flowers in a garden.jpg",
+          "images/sdxl/1p1s/humans_10/A vibrant scene of A gardener with gloves and a straw hat watering plants in a greenhouse.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/humans_10/A vibrant scene of A gardener with gloves and a straw hat arranging flowers in a basket.jpg",
+          "images/sdxl/ours/humans_10/A vibrant scene of A gardener with gloves and a straw hat planting flowers in a garden.jpg",
+          "images/sdxl/ours/humans_10/A vibrant scene of A gardener with gloves and a straw hat watering plants in a greenhouse.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/humans_10/ A vibrant scene of A gardener with gloves and a straw hat, arranging flowers in a basket.png",
+          "images/sdxl/consistory/humans_10/ A vibrant scene of A gardener with gloves and a straw hat, planting flowers in a garden.png",
+          "images/sdxl/consistory/humans_10/ A vibrant scene of A gardener with gloves and a straw hat, watering plants in a greenhouse.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/humans_10/A vibrant scene of A gardener with gloves and a straw hat arranging flowers in a basket.jpg",
+          "images/sdxl/storydiffusion/humans_10/A vibrant scene of A gardener with gloves and a straw hat planting flowers in a garden.jpg",
+          "images/sdxl/storydiffusion/humans_10/A vibrant scene of A gardener with gloves and a straw hat watering plants in a greenhouse.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "title": "Prompt Group 9 (humans_11)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes dining at a fancy restaurant"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes in a vineyard"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes reading a newspaper"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes dining at a fancy restaurant.jpg",
+          "images/sdxl/1p1s/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes in a vineyard.jpg",
+          "images/sdxl/1p1s/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes reading a newspaper.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes dining at a fancy restaurant.jpg",
+          "images/sdxl/ours/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes in a vineyard.jpg",
+          "images/sdxl/ours/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes reading a newspaper.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/humans_11/ A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, dining at a fancy restaurant.png",
+          "images/sdxl/consistory/humans_11/ A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, in a vineyard.png",
+          "images/sdxl/consistory/humans_11/ A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, reading a newspaper.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes dining at a fancy restaurant.jpg",
+          "images/sdxl/storydiffusion/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes in a vineyard.jpg",
+          "images/sdxl/storydiffusion/humans_11/A 3D animation of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes reading a newspaper.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "title": "Prompt Group 10 (humans_12)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose at a seaside pier"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose on a city street in the 1950s"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose wearing a gardening apron"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose at a seaside pier.jpg",
+          "images/sdxl/1p1s/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose on a city street in the 1950s.jpg",
+          "images/sdxl/1p1s/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose wearing a gardening apron.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose at a seaside pier.jpg",
+          "images/sdxl/ours/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose on a city street in the 1950s.jpg",
+          "images/sdxl/ours/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose wearing a gardening apron.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/humans_12/ A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose, at a seaside pier.png",
+          "images/sdxl/consistory/humans_12/ A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose, on a city street in the 1950s.png",
+          "images/sdxl/consistory/humans_12/ A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose, wearing a gardening apron.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose at a seaside pier.jpg",
+          "images/sdxl/storydiffusion/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose on a city street in the 1950s.jpg",
+          "images/sdxl/storydiffusion/humans_12/A pixar style illustration of A woman with a slender figure, straight red hair, and freckles across the nose wearing a gardening apron.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "title": "Prompt Group 11 (humans_14)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes discussing art at a gallery"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes having a leisurely walk"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes wearing a vineyard owner's attire"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes discussing art at a gallery.jpg",
+          "images/sdxl/1p1s/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes having a leisurely walk.jpg",
+          "images/sdxl/1p1s/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes wearing a vineyard owner's attire.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes discussing art at a gallery.jpg",
+          "images/sdxl/ours/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes having a leisurely walk.jpg",
+          "images/sdxl/ours/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes wearing a vineyard owner's attire.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/humans_14/ A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, discussing art at a gallery.png",
+          "images/sdxl/consistory/humans_14/ A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, having a leisurely walk.png",
+          "images/sdxl/consistory/humans_14/ A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes, wearing a vineyard owner's attire.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes discussing art at a gallery.jpg",
+          "images/sdxl/storydiffusion/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes having a leisurely walk.jpg",
+          "images/sdxl/storydiffusion/humans_14/A pixel art depiction of An elderly gentleman with distinguished gray hair, a neatly trimmed mustache, and gentle blue eyes wearing a vineyard owner's attire.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "title": "Prompt Group 12 (humans_15)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes building a sandcastle"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes drawing in a sketchbook"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes reading a fairy tale book"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes building a sandcastle.jpg",
+          "images/sdxl/1p1s/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes drawing in a sketchbook.jpg",
+          "images/sdxl/1p1s/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes reading a fairy tale book.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes building a sandcastle.jpg",
+          "images/sdxl/ours/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes drawing in a sketchbook.jpg",
+          "images/sdxl/ours/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes reading a fairy tale book.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/humans_15/ A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes, building a sandcastle.png",
+          "images/sdxl/consistory/humans_15/ A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes, drawing in a sketchbook.png",
+          "images/sdxl/consistory/humans_15/ A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes, reading a fairy tale book.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes building a sandcastle.jpg",
+          "images/sdxl/storydiffusion/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes drawing in a sketchbook.jpg",
+          "images/sdxl/storydiffusion/humans_15/A hyper-realistic digital painting of a 16 years old girl with wavy chestnut hair, a slender frame, and soft brown eyes reading a fairy tale book.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "title": "Prompt Group 13 (inanimate_10)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A photo of A sticker of a colorful balloon decorating a child's bedroom wall"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A photo of A sticker of a colorful balloon floating on a festival flyer"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A photo of A sticker of a colorful balloon on a helium tank label"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/inanimate_10/A photo of A sticker of a colorful balloon decorating a child's bedroom wall.jpg",
+          "images/sdxl/1p1s/inanimate_10/A photo of A sticker of a colorful balloon floating on a festival flyer.jpg",
+          "images/sdxl/1p1s/inanimate_10/A photo of A sticker of a colorful balloon on a helium tank label.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/inanimate_10/A photo of A sticker of a colorful balloon decorating a child's bedroom wall.jpg",
+          "images/sdxl/ours/inanimate_10/A photo of A sticker of a colorful balloon floating on a festival flyer.jpg",
+          "images/sdxl/ours/inanimate_10/A photo of A sticker of a colorful balloon on a helium tank label.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/inanimate_10/ A photo of A sticker of a colorful balloon, decorating a child's bedroom wall.png",
+          "images/sdxl/consistory/inanimate_10/ A photo of A sticker of a colorful balloon, floating on a festival flyer.png",
+          "images/sdxl/consistory/inanimate_10/ A photo of A sticker of a colorful balloon, on a helium tank label.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/inanimate_10/A photo of A sticker of a colorful balloon decorating a child's bedroom wall.jpg",
+          "images/sdxl/storydiffusion/inanimate_10/A photo of A sticker of a colorful balloon floating on a festival flyer.jpg",
+          "images/sdxl/storydiffusion/inanimate_10/A photo of A sticker of a colorful balloon on a helium tank label.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "title": "Prompt Group 14 (inanimate_14)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a Victorian-style parlor"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a modern living room"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in an outdoor patio"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a Victorian-style parlor.jpg",
+          "images/sdxl/1p1s/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a modern living room.jpg",
+          "images/sdxl/1p1s/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in an outdoor patio.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a Victorian-style parlor.jpg",
+          "images/sdxl/ours/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a modern living room.jpg",
+          "images/sdxl/ours/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in an outdoor patio.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/inanimate_14/ A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests, in a Victorian-style parlor.png",
+          "images/sdxl/consistory/inanimate_14/ A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests, in a modern living room.png",
+          "images/sdxl/consistory/inanimate_14/ A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests, in an outdoor patio.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a Victorian-style parlor.jpg",
+          "images/sdxl/storydiffusion/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in a modern living room.jpg",
+          "images/sdxl/storydiffusion/inanimate_14/A hyper-realistic digital painting of A plush velvet sofa in a rich emerald green color with elegant, curved armrests in an outdoor patio.jpg"
+        ]
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "title": "Prompt Group 15 (technoledge_2)",
+    "prompts": [
+      {
+        "label": "Prompt 1",
+        "text": "A charming nature illustration of A robotic rabbit with fluffy ears entertaining children in a playroom"
+      },
+      {
+        "label": "Prompt 2",
+        "text": "A charming nature illustration of A robotic rabbit with fluffy ears exploring urban parks with its owner"
+      },
+      {
+        "label": "Prompt 3",
+        "text": "A charming nature illustration of A robotic rabbit with fluffy ears navigating offices delivering documents"
+      }
+    ],
+    "options": [
+      {
+        "name": "Option A",
+        "methodName": "1p1s",
+        "images": [
+          "images/sdxl/1p1s/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears entertaining children in a playroom.jpg",
+          "images/sdxl/1p1s/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears exploring urban parks with its owner.jpg",
+          "images/sdxl/1p1s/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears navigating offices delivering documents.jpg"
+        ]
+      },
+      {
+        "name": "Option B",
+        "methodName": "ours",
+        "images": [
+          "images/sdxl/ours/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears entertaining children in a playroom.jpg",
+          "images/sdxl/ours/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears exploring urban parks with its owner.jpg",
+          "images/sdxl/ours/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears navigating offices delivering documents.jpg"
+        ]
+      },
+      {
+        "name": "Option C",
+        "methodName": "consistory",
+        "images": [
+          "images/sdxl/consistory/technoledge_2/ A charming nature illustration of A robotic rabbit with fluffy ears, entertaining children in a playroom.png",
+          "images/sdxl/consistory/technoledge_2/ A charming nature illustration of A robotic rabbit with fluffy ears, exploring urban parks with its owner.png",
+          "images/sdxl/consistory/technoledge_2/ A charming nature illustration of A robotic rabbit with fluffy ears, navigating offices delivering documents.png"
+        ]
+      },
+      {
+        "name": "Option D",
+        "methodName": "storydiffusion",
+        "images": [
+          "images/sdxl/storydiffusion/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears entertaining children in a playroom.jpg",
+          "images/sdxl/storydiffusion/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears exploring urban parks with its owner.jpg",
+          "images/sdxl/storydiffusion/technoledge_2/A charming nature illustration of A robotic rabbit with fluffy ears navigating offices delivering documents.jpg"
+        ]
+      }
+    ]
+  }
+];
+const CRITERIA_DESC = [
+  {
+    "icon": "🎯",
+    "label": "Text-Image Alignment",
+    "desc": "이미지가 주어진 프롬프트 텍스트를 얼마나 잘 반영하는지"
+  },
+  {
+    "icon": "🔗",
+    "label": "Subject Consistency",
+    "desc": "여러 이미지에 걸쳐 피사체(객체)가 일관되게 유지되는지"
+  },
+  {
+    "icon": "✨",
+    "label": "Image Quality",
+    "desc": "이미지가 선명하고 세부적이며 시각적 완성도가 높은지"
+  }
+];
+
+// answers: { flux: { groupId: { displayName, methodName } }, sdxl: {...} }
+const answers = { flux: {}, sdxl: {} };
+let evaluatorName = "";
+let currentPhase  = "flux";
+
+function startEval() {
+  const val = document.getElementById('evaluator-name').value.trim();
+  if (!val) return;
+  evaluatorName = val;
+  document.getElementById('name-modal').classList.remove('show');
+}
+
+function shuffleGroups(groups) {
+  const allLabels = ['Option A', 'Option B', 'Option C', 'Option D'];
+  groups.forEach(g => {
+    const labels = allLabels.slice(0, g.options.length);
+    for (let i = g.options.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [g.options[i], g.options[j]] = [g.options[j], g.options[i]];
+    }
+    g.options.forEach((opt, idx) => { opt.displayName = labels[idx]; });
+  });
+}
+
+function renderGroups(groups, containerId, phase) {
+  const container = document.getElementById(containerId);
+
+  const hintHtml = `
+    <div class="criteria-hint">
+      ${CRITERIA_DESC.map(c => `
+        <div class="criteria-hint-item">
+          <span class="hint-icon">${c.icon}</span>
+          <span><strong>${c.label}</strong> — ${c.desc}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  container.innerHTML = groups.map(g => {
+    const theadCols = g.prompts.map((p, i) => `
+      <th>
+        <div>Prompt ${i+1}</div>
+        <div class="prompt-text">${p.text}</div>
+      </th>
+    `).join('');
+
+    const tbodyRows = g.options.map(opt => `
+      <tr>
+        <td><div class="option-row-label">${opt.displayName}</div></td>
+        ${opt.images.map((src, i) => `
+          <td>
+            <div class="image-cell">
+              <img src="${src}" alt="${opt.displayName} prompt ${i+1}" loading="lazy"
+                onerror="this.parentElement.innerHTML='<div class=\'image-placeholder\'>No Image</div>'">
+            </div>
+          </td>
+        `).join('')}
+      </tr>
+    `).join('');
+
+    const voteOpts = g.options.map(opt => `
+      <div class="vote-option"
+        id="vopt-${phase}-${g.id}-${opt.displayName.replace(' ','')}"
+        onclick="selectVote('${phase}', ${g.id}, '${opt.displayName}', '${opt.methodName}')">
+        <div class="vote-radio"></div>
+        <span class="vote-option-label">${opt.displayName}</span>
+      </div>
+    `).join('');
+
+    const isAnswered = !!answers[phase][g.id];
+    const badgeText  = isAnswered ? `✔ ${answers[phase][g.id].displayName}` : '미선택';
+
+    return `
+      <div class="group-card" id="group-${phase}-${g.id}">
+        <div class="group-header">
+          <h2>${g.title}</h2>
+          <span class="status-badge ${isAnswered ? 'answered' : ''}" id="badge-${phase}-${g.id}">${badgeText}</span>
+        </div>
+        <div class="group-body">
+          <div class="images-section">
+            <table class="images-table">
+              <thead><tr><th></th>${theadCols}</tr></thead>
+              <tbody>${tbodyRows}</tbody>
+            </table>
+          </div>
+          <div class="voting-panel">
+            <div class="voting-panel-title">종합 평가</div>
+            ${hintHtml}
+            <div class="vote-block">
+              <div class="vote-block-header">가장 좋은 옵션을 선택하세요</div>
+              <div class="vote-opts">${voteOpts}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectVote(phase, groupId, displayName, methodName) {
+  const groups = phase === 'flux' ? fluxGroups : sdxlGroups;
+  const g = groups.find(x => x.id === groupId);
+
+  g.options.forEach(opt => {
+    const el = document.getElementById(`vopt-${phase}-${groupId}-${opt.displayName.replace(' ','')}`);
+    if (el) el.classList.remove('selected');
+  });
+
+  const chosen = document.getElementById(`vopt-${phase}-${groupId}-${displayName.replace(' ','')}`);
+  if (chosen) chosen.classList.add('selected');
+
+  answers[phase][groupId] = { displayName, methodName };
+
+  const badge = document.getElementById(`badge-${phase}-${groupId}`);
+  if (badge) {
+    badge.textContent = `✔ ${displayName}`;
+    badge.classList.add('answered');
+  }
+
+  updateProgress();
+}
+
+function updateProgress() {
+  const groups = currentPhase === 'flux' ? fluxGroups : sdxlGroups;
+  const total  = groups.length;
+  const done   = groups.filter(g => answers[currentPhase][g.id]).length;
+
+  document.getElementById('progress-bar').style.width = (total > 0 ? done / total * 100 : 0) + '%';
+  document.getElementById('progress-text').textContent = `${done} / ${total} answered`;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = done < total;
+  btn.textContent = currentPhase === 'flux' ? 'Next: Part 2 →' : 'Submit All';
+}
+
+function onSubmitClick() {
+  if (currentPhase === 'flux') {
+    document.getElementById('phase-modal').classList.add('show');
+  } else {
+    submitAll();
+  }
+}
+
+function goToPhase2() {
+  document.getElementById('phase-modal').classList.remove('show');
+  document.getElementById('phase-flux').classList.remove('active');
+  document.getElementById('phase-sdxl').classList.add('active');
+  currentPhase = 'sdxl';
+  document.getElementById('phase-label').textContent = 'Part 2 of 2';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  updateProgress();
+}
+
+function submitAll() {
+  const tbody = document.querySelector('#results-table tbody');
+  const allRows = [];
+  ['flux', 'sdxl'].forEach(phase => {
+    const groups = phase === 'flux' ? fluxGroups : sdxlGroups;
+    groups.forEach(g => {
+      allRows.push(`
+        <tr>
+          <td>${phase === 'flux' ? 'Part 1' : 'Part 2'}</td>
+          <td>${g.title}</td>
+          <td>${answers[phase][g.id]?.displayName || '—'}</td>
+        </tr>
+      `);
+    });
+  });
+  tbody.innerHTML = allRows.join('');
+  document.getElementById('modal').classList.add('show');
+
+  const SHEET_URL = "https://script.google.com/macros/s/AKfycby6mY6BOT0QWShRhp_5WBacvnbNFCttMF-vLUD8D7Tv6Vk5nw6Kgf7dKkkT7a0hCVMo/exec";
+  const answersArray = [];
+  ['flux', 'sdxl'].forEach(phase => {
+    const groups = phase === 'flux' ? fluxGroups : sdxlGroups;
+    groups.forEach(g => {
+      answersArray.push({
+        part:         phase === 'flux' ? 'Part 1' : 'Part 2',
+        group:        g.title,
+        best_display: answers[phase][g.id]?.displayName || '—',
+        best_method:  answers[phase][g.id]?.methodName  || '—',
+      });
+    });
+  });
+
+  document.getElementById('submit-btn').disabled = true;
+
+  fetch(SHEET_URL, {
+    method: "POST", mode: "no-cors",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ evaluator: evaluatorName, answers: answersArray })
+  }).then(() => console.log("✅ Google Sheets 전송 완료"))
+    .catch(err => console.error("❌ 전송 실패:", err));
+}
+
+function copyResults() {
+  const lines = ['flux', 'sdxl'].map(phase => {
+    const groups = phase === 'flux' ? fluxGroups : sdxlGroups;
+    return `[[Part ${phase === 'flux' ? 1 : 2}]]\n` + groups.map(g =>
+      `${g.title}: ${answers[phase][g.id]?.displayName || '—'}`
+    ).join('\n');
+  }).join('\n\n');
+  navigator.clipboard.writeText(lines).then(() => alert('결과가 클립보드에 복사되었습니다!'));
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+}
+
+shuffleGroups(fluxGroups);
+shuffleGroups(sdxlGroups);
+renderGroups(fluxGroups, 'flux-content', 'flux');
+renderGroups(sdxlGroups, 'sdxl-content', 'sdxl');
+updateProgress();
+</script>
+</body>
+</html>
